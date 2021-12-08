@@ -1,0 +1,229 @@
+---
+title: "AMS 380"
+author: "Prashun Dey" 
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+```{r setup, include=FALSE}
+if (!requireNamespace("iris")) install.packages('iris')
+library(datarium)
+data('iris')
+
+diamonds <- read.csv("/Users/prashundey/Desktop/AMS 380/Midterm1/diamond.csv")
+
+library("ggpubr")
+library("car")
+library(tidyverse)
+library(caret)
+library(leaps)
+library(MASS)
+```
+
+# Question 1.A
+Plot
+```{r Question 1.A}
+ggboxplot(iris, x = "Species", y = "Sepal.Width",
+color = "Species", palette = c("#00AFBB", "#E7B800", "#FC4E07"),
+order = c("setosa", "versicolor", "virginica"),
+ylab = "Sepal.Width", xlab = "Species")
+```
+
+
+# Question 1.B
+Checking Assumptions
+```{r}
+bartlett.test(Sepal.Width ~ Species, data = iris)
+```
+P-value is 0.3515, greater than 0.05, not reject null hypothesis and the variance of each group are the same.  
+
+```{r}
+shapiro.test(iris$Sepal.Width[iris$Species == 'setosa'])
+shapiro.test(iris$Sepal.Width[iris$Species == 'versicolor'])
+shapiro.test(iris$Sepal.Width[iris$Species == 'virginica'])
+```
+P-value of setosa, versicolor, virginica are 0.2715, 0.338, 0.1809, all greater than 0.05, they are all normal.    
+
+```{r}
+summary(aov(Sepal.Width~Species, data = iris))
+```
+P-value is <2e-16, less than 0.05, reject null hypothesis and the mean of each group are not the same.      
+
+# Question 1.C
+```{r}
+TukeyHSD(aov(Sepal.Width~Species, data = iris))
+```
+The p-value of versicolor-setosa is 0.0000000, less than 0.05, reject null hypothesis, the means are not equal.   
+The p-value of virginica-setosa is 0.0000000, less than 0.05, reject null hypothesis, the means are not equal.   
+The p-value of virginica-versicolor is 0.0087802, less than 0.05, reject null hypothesis, the means are not equal.      
+
+# Question 1.D
+Checking Assumptions
+```{r}
+var.test(iris$Sepal.Width[iris$Species == 'virginica'],iris$Sepal.Width[iris$Species == 'versicolor'])
+```
+P-value = 0.849, greater than 0.05, not reject null hypothesis and the variance of them are equal.  
+
+```{r}
+t.test(iris$Sepal.Width[iris$Species == 'virginica'],iris$Sepal.Width[iris$Species == 'versicolor'], var.equal = T)
+```
+P-value = 0.001819 less than 0.05, reject null hypothesis and the mean of virginica and versicolor specal.widths are different.
+
+
+# Question 2.A
+```{r}
+fit <- lm(price ~ carat, data= diamonds)
+fit
+```
+Least square equation: price = -2244 +  7644 * carat
+
+```{r}
+cor(diamonds$price, diamonds$carat)
+```
+The Pearson	correlation	between	these	two	variables is 0.9135685 
+
+```{r}
+summary(fit)
+```
+The ccoefficient of determination 0.8346, very strong linear relationship
+
+Checking Assumptions   
+1. Normality
+```{r}
+shapiro.test(residuals(fit))
+```
+P-value is < 2.2e-16, which is less than .05. Reject null hypthoseies and conclude normality assumption not satisfied      
+
+2. Plot
+```{r}
+par(mfrow = c(2,2))
+plot(fit)
+```
+
+
+
+# Question 2.B
+```{r}
+fit1 <- lm(price ~ color, data = diamonds)
+summary(fit1)
+contrasts(factor(diamonds$color))
+```
+Least square equation: price = 3152.97  + 87.55 * I(colorE) + 361.51 * I(colorF) + 523.34 * I(colorG) + 790.44 * I(colorH) + 1707.34 * I(colorI) + 1944.82 * I(colorJ).       
+Color D is the baseline group.     
+P-values is 0.0005746, less than 0.05, reject null hypothesis, effect is significant.       
+
+Checking Assumptions:
+```{r}
+shapiro.test(diamonds$price[diamonds$color == 'D'])
+shapiro.test(diamonds$price[diamonds$color == 'E'])
+shapiro.test(diamonds$price[diamonds$color == 'F'])
+shapiro.test(diamonds$price[diamonds$color == 'G'])
+shapiro.test(diamonds$price[diamonds$color == 'H'])
+shapiro.test(diamonds$price[diamonds$color == 'I'])
+shapiro.test(diamonds$price[diamonds$color == 'J'])
+```
+Color D: P-value = 2.073e-12, less than 0.05, reject null hypothesis, not normal.      
+Color E: P-value < 2.2e-16, less than 0.05, reject null hypothesis, not normal.      
+Color F: P-value = 1.59e-15, less than 0.05, reject null hypothesis, not normal.      
+Color G: P-value = 7.363e-16, less than 0.05, reject null hypothesis, not normal.      
+Color H: P-value = 1.798e-11, less than 0.05, reject null hypothesis, not normal.      
+Color I: P-value = 8.363e-08, less than 0.05, reject null hypothesis, not normal.      
+Color J: P-value = 0.003356, less than 0.05, reject null hypothesis, not normal.       
+
+
+
+```{r}
+bartlett.test(price ~ factor(color), data = diamonds)
+
+```
+P-value is 0.01121 which is less than 0.05, reject null hypothesis and their variances are  not equal.  
+
+
+
+# Question 2.C
+```{r}
+models <- regsubsets(price ~ ., data = diamonds, nvmax = 9)
+summary(models)
+
+```
+There are 9 total regressors        
+Best model with 1 variable: price ~ carat       
+Best model with 2 variables: price ~ carat + I(colorJ)     
+Best model with 3 variables: price ~ carat + I(colorI) + I(colorJ)      
+Best model with 4 variables: price ~ carat + I(colorH) + I(colorI) + Icolor(J)     
+Best model with 5 variables: price ~ carat + I(colorH) + I(colorI) + Icolor(J) + table       
+Best model with 6 variables: price ~ carat + I(colorH) + I(colorI) + Icolor(J) + table + depth      
+Best model with 7 variables: price ~ carat + I(colorE) + I(colorH) + I(colorI) + Icolor(J) + table + depth        
+Best model with 8 variables: price ~ carat + I(colorE) + Icolor(G) + I(colorH) + I(colorI) + Icolor(J) + table + depth        
+Best model with 9 variables: price ~ carat + I(colorE) + Icolor(F) Icolor(G) + I(colorH) + I(colorI) + Icolor(J) + table + depth            
+
+
+# Question 2.D
+```{r}
+revised_data <- model.matrix(~., data = diamonds)[,-1]
+```
+
+
+```{r}
+get_model_formula <- function(id, object, outcome){
+  # get models data
+  models <- summary(object)$which[id,-1]
+  # Get outcome variable
+  form <- as.formula(object$call[[2]])
+  outcome <- all.vars(form)[1]
+  # Get model predictors
+  predictors <- names(which(models == TRUE))
+  predictors <- paste(predictors, collapse = "+")
+  # Build model formula
+  as.formula(paste0(outcome, "~", predictors))
+}
+
+get_cv_error <- function(model.formula, data){
+  set.seed(1)
+  train.control <- trainControl(method = "cv", number = 5)
+  cv <- train(model.formula, data = data, method = "lm",
+    trControl = train.control)
+  cv$results$RMSE
+}
+
+model.ids <- 1:9
+cv.errors <- map(model.ids, get_model_formula, models, "price") %>%
+  map(get_cv_error, data = revised_data) %>%
+  unlist()
+
+cv.errors
+which(cv.errors == min(cv.errors))
+
+summary(models)$bic
+```
+The best model is the model with 6 variables : price ~ carat + I(colorH) + I(colorI) + Icolor(J) + table + depth       
+The best model with lowest BIC is the 7th model: price ~ carat + I(colorE) + I(colorH) + I(colorI) + Icolor(J) + table + depth       
+
+
+# Question 2.E
+```{r}
+res.lm <- lm(price ~., data = diamonds)
+step <- stepAIC(res.lm, direction = "both", trace = FALSE)
+step
+```
+The best model by stepwise regression is price = 11968.864 +  8062.951 * carat - 33.646* I(colorE) - 3.684 * I(colorF) - 10.461 * I(colorG) -544.680 * I(colorH) - 970.487 * I(colorI) - 1837.177 * I(colorJ) - 128.112 * depth   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

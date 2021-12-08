@@ -1,0 +1,478 @@
+---
+title: "AMS 380"
+author: "Prashun Dey"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r include=FALSE, paged.print=TRUE}
+if (!requireNamespace("tidyverse")) install.packages('tidyverse')
+if (!requireNamespace("caret")) install.packages('caret')
+if (!requireNamespace("neuralnet")) install.packages('neuralnet')
+if (!requireNamespace("keras")) install.packages('keras')
+if (!requireNamespace("randomForest")) install.packages('randomForest')
+if (!requireNamespace("rpart")) install.packages('rpart')
+if (!requireNamespace("rattle")) install.packages('rattle')
+
+library(tidyverse)
+library(caret)
+library(neuralnet)
+library(keras)
+library(randomForest)
+library(rpart)
+library(rattle)
+```
+
+# Part 1
+## Question 1
+
+```{r}
+data1 <- read.csv('Enigma.csv')
+cat('There are', nrow(data1) - nrow(na.omit(data1)), 'missing values in the dataset.')
+# clean data without missing values
+data1 <- na.omit(data1)
+```
+
+```{r}
+set.seed(123)
+training.samples <- data1$y %>% createDataPartition(p = 0.75, list = FALSE)
+train.data  <- data1[training.samples, ]
+test.data <- data1[-training.samples, ]
+```
+
+
+## Question 2
+
+### 2.a
+
+```{r}
+set.seed(123)
+model <- neuralnet(y~., data = train.data, hidden = 0, err.fct = "sse", linear.output = F)
+plot(model, rep = "best")
+```
+
+```{r}
+probabilities <- model %>% predict(test.data) %>% as.vector()
+predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
+confusionMatrix(factor(predicted.classes), factor(test.data$y), positive = '1')
+```
+
+
+### 2.b
+
+```{r}
+set.seed(123)
+model <- neuralnet(y~., data = train.data, hidden = 0, err.fct = "ce", linear.output = F)
+plot(model, rep = "best")
+```
+
+```{r}
+probabilities <- model %>% predict(test.data)
+predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
+confusionMatrix(factor(predicted.classes), factor(test.data$y), positive = '1')
+```
+
+### 2.c
+
+```{r}
+set.seed(123)
+model <- glm(y~., family = binomial, data = train.data)
+model
+```
+The CE Loss function model better resembles logistic regression model.
+
+```{r}
+probabilities <- model %>% predict(test.data, type = 'response')
+predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
+confusionMatrix(factor(predicted.classes), factor(test.data$y), positive = '1')
+```
+
+### 2.d
+
+```{r}
+set.seed(123)
+model <- neuralnet(y~., data = train.data, hidden = 3, err.fct = "sse", linear.output = F)
+plot(model, rep = "best")
+```
+
+```{r}
+probabilities <- model %>% predict(test.data)
+predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
+confusionMatrix(factor(predicted.classes), factor(test.data$y), positive = '1')
+```
+
+The prediction with hidden layers is better than no hidden layer.`
+
+### 2.e
+
+```{r}
+set.seed(123)
+model <- neuralnet(y~., data = train.data, hidden = 3, err.fct = "ce", linear.output = F)
+plot(model, rep = "best")
+```
+
+```{r}
+probabilities <- model %>% predict(test.data)
+predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
+confusionMatrix(factor(predicted.classes), factor(test.data$y), positive = '1')
+```
+
+The prediction with hidden layers is better than no hidden layer.
+
+
+## Question 3
+
+### 3.a
+```{r}
+########### To conduct the random forest, need factorize the response data, or will become regression random forest###########
+train.data$y <- factor(train.data$y)
+test.data$y <- factor(test.data$y)
+##################################
+
+set.seed(123)
+model <- train(
+  y ~., data = train.data, method = "rf",
+  trControl = trainControl("cv", number = 10),
+  importance = TRUE
+  )
+# Best tuning parameter
+model$bestTune
+```
+
+```{r}
+model$finalModel
+```
+
+Overall Accuracy
+```{r}
+(2028+1206)/(2028+1206+151+66)
+```
+
+Sensitivity
+```{r}
+1206/(1206+151)
+```
+
+Specificity
+```{r}
+2028/(2028+66)
+```
+
+### 3.b
+
+```{r}
+pred <- model %>% predict(test.data)
+#predict(model, test)
+confusionMatrix(pred, test.data$y, positive = '1')
+```
+
+### 3.c
+
+```{r}
+# Plot MeanDecreaseAccuracy
+varImpPlot(model$finalModel, type = 1)
+# Plot MeanDecreaseGini
+varImpPlot(model$finalModel, type = 2)
+```
+
+### 3.d
+
+```{r}
+varImp(model, type = 1)
+```
+
+
+## Question 4
+
+### 4.a
+```{r}
+model <- rpart(y ~., data = train.data, control = rpart.control(cp=0))
+par(xpd = NA)
+fancyRpartPlot(model)
+```
+
+```{r}
+pred_full <- predict(model, newdata = test.data, type ='class')
+confusionMatrix(pred_full, test.data$y, positive = '1')
+```
+
+### 4.b
+```{r}
+set.seed(123)
+model2 <- train(
+  y ~., data = train.data, method = "rpart",
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 100)
+plot(model2)
+```
+
+```{r}
+model2$bestTune
+```
+
+The best pruned tree is just the fully grown tree.  
+
+```{r}
+fancyRpartPlot(model2$finalModel)
+```
+
+### 4.c
+
+```{r}
+pred_prune <- predict(model2, newdata = test.data)
+confusionMatrix(pred_prune, test.data$y)
+```
+
+## Question 5
+### 5.a
+```{r}
+# if the pruned tree is different with fully grown tree, it should not be 1
+mean(pred_full == pred_prune)
+```
+
+### 5.b
+```{r}
+(402 + 657) / (402 + 657 + 37 + 54)
+```
+Both classification methods, resulted in the same percentage because they were the same tree. 92.09% accuracy.
+
+# Part 2
+
+```{r include=FALSE, paged.print=TRUE}
+if (!requireNamespace("ggplot2")) install.packages('ggplot2')
+if (!requireNamespace("glmnet")) install.packages('glmnet')
+if (!requireNamespace("leaps")) install.packages('leaps')
+if (!requireNamespace("MASS")) install.packages('MASS')
+
+library(glmnet)
+library(ggplot2)
+library(leaps)
+library(MASS)
+```
+
+## Question 1
+
+```{r}
+data2 <- read.csv('Mystery.csv')
+cat('There are', nrow(data2) - nrow(na.omit(data2)), 'missing values in the dataset.')
+
+data2 <- na.omit(data2)
+```
+
+```{r}
+set.seed(123)
+training.samples <- data2$y %>% createDataPartition(p = 0.75, list = FALSE)
+train.data  <- data2[training.samples, ]
+test.data <- data2[-training.samples, ]
+```
+
+
+## Question 2
+
+### 2.a
+```{r}
+x <- model.matrix(y ~., train.data)[,-1]
+y <- train.data$y
+set.seed(123) 
+cv <- cv.glmnet(x, y, alpha = 0)
+cv$lambda.min
+```
+The best lambda for ridge regression is 64.52856
+```{r}
+model <- glmnet(x, y, alpha = 0, lambda = cv$lambda.min)
+coef(model)
+```
+
+```{r}
+x.test <- model.matrix(y ~., test.data)[,-1]
+predictions <- model %>% predict(x.test) %>% as.vector()
+data.frame(
+  RMSE = RMSE(predictions, test.data$y),
+  Rsquare = R2(predictions, test.data$y)
+)
+```
+```{r}
+ggplot(data = test.data, aes(x = y, y = predictions)) + geom_point()
+```
+
+
+### 2.b
+```{r}
+set.seed(123) 
+cv <- cv.glmnet(x, y, alpha = 1)
+cv$lambda.min
+```
+best lambda for LASSO is 3.211601
+```{r}
+model <- glmnet(x, y, alpha = 1, lambda = cv$lambda.min)
+coef(model)
+```
+
+```{r}
+x.test <- model.matrix(y ~., test.data)[,-1]
+predictions <- model %>% predict(x.test) %>% as.vector()
+data.frame(
+  RMSE = RMSE(predictions, test.data$y),
+  Rsquare = R2(predictions, test.data$y)
+)
+```
+
+```{r}
+ggplot(data = test.data, aes(x = y, y = predictions)) + geom_point()
+```
+
+### 2.c
+```{r}
+set.seed(123)
+model <- train(
+ y ~., data = train.data, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 10
+)
+model$bestTune
+```
+
+```{r}
+coef(model$finalModel, model$bestTune$lambda)
+```
+
+```{r}
+x.test <- subset(test.data, select = -y)
+predictions <- model %>% predict(x.test)
+# model$fianlModel %>% predict(x.test,model$bestTune$lambda)
+data.frame(
+  RMSE = RMSE(predictions, test.data$y),
+  Rsquare = R2(predictions, test.data$y)
+)
+```
+
+```{r}
+ggplot(data = test.data, aes(x = y, y = predictions)) + geom_point()
+```
+
+### 2.d
+
+```{r}
+# to make sure to get same result, we alwasy set lambda range like this
+lambda <- 10^seq(-3, 3, length = 100)
+```
+
+```{r}
+set.seed(123)
+ridge <- train(
+  y ~., data = train.data, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneGrid = expand.grid(alpha = 0, lambda = lambda)
+  )
+```
+
+```{r}
+set.seed(123)
+lasso <- train(
+  y ~., data = train.data, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneGrid = expand.grid(alpha = 1, lambda = lambda)
+  )
+```
+
+```{r}
+set.seed(123)
+elastic <- train(
+  y ~., data = train.data, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 10
+  )
+```
+
+```{r}
+models <- list(ridge = ridge, lasso = lasso, elastic = elastic)
+resamples(models) %>% summary( metric = "RMSE")
+```
+Elastic model is the best with lowest mean and second lowest median of RMSE.
+
+
+## Question 3
+
+### 3.a
+```{r}
+models <- regsubsets(y~., data = train.data, nvmax = 5)
+summary(models)
+```
+
+```{r}
+for(i in 1:5){
+  cat('The best model with', i, 'variable(s) is:\n')
+  predictors <- names(which(summary(models)$which[i,-1] == TRUE))
+  predictors <- paste(predictors, collapse = "+")
+  cat('y ~' , predictors, '\n')
+}
+```
+
+### 3.b
+```{r}
+get_model_formula <- function(id, object, outcome){
+  # get models data
+  models <- summary(object)$which[id,-1]
+  # Get outcome variable
+  #form <- as.formula(object$call[[2]])
+  #outcome <- all.vars(form)[1]
+  # Get model predictors
+  predictors <- names(which(models == TRUE))
+  predictors <- paste(predictors, collapse = "+")
+  # Build model formula
+  as.formula(paste0(outcome, "~", predictors))
+}
+```
+
+```{r}
+get_cv_error <- function(model.formula, data){
+  set.seed(123)
+  train.control <- trainControl(method = "cv", number = 5)
+  cv <- train(model.formula, data = data, method = "lm",
+              trControl = train.control)
+  cv$results$RMSE
+}
+```
+
+```{r}
+model.ids <- 1:5
+cv.errors <-  map(model.ids, get_model_formula, models, "y") %>%
+  map(get_cv_error, data = train.data) %>%
+  unlist()
+cv.errors
+```
+The overall best model is the model with 5 variables:    
+y ~ x1+x3+x5+x7+x9  
+This model has the lowest error.  
+
+
+### 3.c
+
+```{r}
+res.lm <- lm(y ~., data = train.data)
+step <- stepAIC(res.lm, direction = "both", trace = FALSE)
+step
+```
+The best model with step wise regression is:  
+y ~ x1 + x2 + x3 + x4 + x5 + x6 + x8 + x9 + x10 + x11 + x14
+
+### 3.d
+
+```{r}
+# add step wise and best subset regression into the model list
+best_sub <- lm(y ~ x1+x3+x5+x7+x9, data = train.data)
+models <- list(ridge = ridge, lasso = lasso, elastic = elastic, best_sub = best_sub, step = step)
+# Here asked to use testing data and resamples funciton can only be applied on train result
+# so we need use another way to compare them.
+lapply(models %>% predict(test.data), RMSE, test.data$y)
+```
+The best model is ridge regression with lowest RMSE.
+
+
+
+
+
+
+
+
